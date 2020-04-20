@@ -1,7 +1,7 @@
 
 #include <NewPing.h> // Provides Accurate, Non-blocking sensor data from the Ultrasonic Sensor
 #include <Ewma.h>    // Smoothing library - used to remove jitter from sensor data
-#include <cppQueue.h> // Queue Library - used to implment mean subttraction so sensor can work in more sinks. 
+#include <cppQueue.h> // From Github: Queue Library - used to implment mean subttraction so sensor can work in more sinks. 
 #include <Servo.h>
 #include <Wire.h>
 
@@ -18,14 +18,15 @@
 // Define Slave answer size
 #define ANSWERSIZE 5
 
-int timer_duration = 20; 
+int timer_duration = 5; 
 int queue_length = 10;
 int queue_change_length = 4;
-int minWaitTime = 25;
+int minWaitTime = 10;
 int waitingTime = 0;
 boolean isWaiting = true;
-int difference_threshold = 3; //the amount of deviation from the mean that will trigger the countdown.
+int difference_threshold = 8; //the amount of deviation from the mean that will trigger the countdown.
 float min_mean = 0.0;
+int prev_total_close = 0;
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 Servo countServo;
 Queue window(sizeof(float), queue_length, IMPLEMENTATION, OVERWRITE);
@@ -58,10 +59,10 @@ void loop() {
 
   // Wait 50ms between ultrasonic pings (about 20 pings/sec).
   delay(50);
-
+  int distance = sonar.ping_cm();
 
   //get filtered data from the sensor
-  float filtered1 = adcFilter1.filter(sonar.ping_cm());
+  float filtered1 =(distance);
   //  Serial.println(sonar.ping_cm());
 
   //subtract the mean so sensor data is centered around zero.
@@ -70,22 +71,28 @@ void loop() {
 
   
   float mean_of_mean = 0;
-  for (int i = 1; i < queue_change_length; i++) {
-      float cur_mean;
-      change.peekIdx(&cur_mean, i);
-      mean_of_mean = mean_of_mean + (int)cur_mean;
+  int total_close = 0;
+  for (int i = 0; i < queue_length; i++) {
+    float for_mean;
+    window.peekIdx(&for_mean, i);
+    if( (int)for_mean > 1 && (int)for_mean < 80){
+        total_close ++;
+      }
   }
   
   //calculate the mean and return.
   int mean_means = mean_of_mean / queue_change_length;
-  Serial.println((String)mean_value + " " + (String)mean_means);
+
+
+  Serial.println((String)total_close);
+  
   if (isWaiting) {
     Serial.println("Waiting Time: " + (String)waitingTime + " out of " + (String)minWaitTime);
     waitingTime++;
   }
   //If the sensor reads something significantly different from what it's normally seeing (the empty sink)
   //we start the countdown!
-  if ( abs(mean_means) >= difference_threshold) {
+  if ( total_close ==  2 && prev_total_close == 1) {
     //    has waited enought frames
     if (!isWaiting) { 
       Serial.println("Write data to slave");
@@ -106,7 +113,7 @@ void loop() {
 
   delay(500);
   change.push(&mean_value);
-
+  prev_total_close = total_close;
 }
 
 //this moves the servo 4.5 degrees every half second
