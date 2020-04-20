@@ -1,7 +1,9 @@
 
+//Packets to install
 #include <NewPing.h> // Provides Accurate, Non-blocking sensor data from the Ultrasonic Sensor
 #include <Ewma.h>    // Smoothing library - used to remove jitter from sensor data
 #include <cppQueue.h> // From Github: Queue Library - used to implment mean subttraction so sensor can work in more sinks. 
+
 #include <Servo.h>
 #include <Wire.h>
 
@@ -18,9 +20,8 @@
 // Define Slave answer size
 #define ANSWERSIZE 5
 
-int timer_duration = 5; 
+int timer_duration = 20                                                                   ; 
 int queue_length = 10;
-int queue_change_length = 4;
 int minWaitTime = 10;
 int waitingTime = 0;
 boolean isWaiting = true;
@@ -30,7 +31,6 @@ int prev_total_close = 0;
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 Servo countServo;
 Queue window(sizeof(float), queue_length, IMPLEMENTATION, OVERWRITE);
-Queue change(sizeof(float), queue_change_length, IMPLEMENTATION, OVERWRITE);
 
 
 Ewma adcFilter1(0.05); //filter used to smooth sensor data
@@ -63,7 +63,6 @@ void loop() {
 
   //get filtered data from the sensor
   float filtered1 =(distance);
-  //  Serial.println(sonar.ping_cm());
 
   //subtract the mean so sensor data is centered around zero.
   float mean_value = filtered1 - meanZero(filtered1);
@@ -80,14 +79,15 @@ void loop() {
       }
   }
   
-  //calculate the mean and return.
-  int mean_means = mean_of_mean / queue_change_length;
 
 
-  Serial.println((String)total_close);
-  
+  Serial.println("Callibrated Zero: "+(String)total_close+ " (>2)");
+  if(total_close > 4){
+    clearQueue();
+  }
   if (isWaiting) {
-    Serial.println("Waiting Time: " + (String)waitingTime + " out of " + (String)minWaitTime);
+    Serial.println("Time: " + (String)waitingTime + " / " + (String)minWaitTime);
+    Serial.println("");
     waitingTime++;
   }
   //If the sensor reads something significantly different from what it's normally seeing (the empty sink)
@@ -99,8 +99,8 @@ void loop() {
       Wire.beginTransmission(SLAVE_ADDR);
       Wire.write(timer_duration);
       Wire.endTransmission();
-      Serial.println("Receive data");
-
+      Serial.println("Slave playing audio");
+      
       countdownServo();
     }
 
@@ -112,21 +112,23 @@ void loop() {
   }
 
   delay(500);
-  change.push(&mean_value);
+
   prev_total_close = total_close;
 }
 
-//this moves the servo 4.5 degrees every half second
-//to smooth out the movemnt (vs 9 degrees every second)
-//for 20 seconds.
+// moves the servo 2.25 degrees every quarter (smooth)
 void countdownServo() {
   Serial.println("Counting down");
-  int halfseconds = timer_duration * 2;
-
+  int halfseconds = timer_duration * 4;
+  int seconds = 0;
   for (int i = halfseconds; i >= 0; i--) {
-
-    countServo.write((int)(i * 4.5));
-    delay(500);
+    int angle = i *  (180/halfseconds);
+    countServo.write(angle);
+    if (seconds%4 == 0){
+      Serial.println((String)(seconds/4));
+    }
+    seconds ++;
+    delay(250);
   }
 
   //reset the servo, clear the queue
@@ -137,10 +139,11 @@ void countdownServo() {
   isWaiting = true;
 }
 
+// make all index's 0
 void clearQueue() {
   for (int i = 0; i < queue_length; i++) {
-    float queue_zeroer = 0;
-    window.push(&queue_zeroer);
+    float zero = 0;
+    window.push(&zero);
   }
 }
 
@@ -148,18 +151,18 @@ void clearQueue() {
 //helper function to calculate a moving mean.
 int meanZero(float smoothedVal) {
 
-  window.push(&smoothedVal); //push the most recent reading into the queue
+  //push the most recent reading into the queue
+  window.push(&smoothedVal); 
 
   int retval = 0;
 
-  //iterate through the queue and add values to return val
   for (int i = 0; i < queue_length; i++) {
     float for_mean;
     window.peekIdx(&for_mean, i);
     retval = retval + (int)for_mean;
   }
 
-  //calculate the mean and return.
+  // return mean of window
   int mean = retval / queue_length;
   return mean;
 }
