@@ -64,17 +64,13 @@ void loop() {
   //get filtered data from the sensor
   float filtered1 =(distance);
 
-  //subtract the mean so sensor data is centered around zero.
-  float mean_value = filtered1 - meanZero(filtered1);
   //This allows the sensor to adjust to different environments and look for change rather than a preset threshold.
 
-  
-  float mean_of_mean = 0;
   int total_close = 0;
   for (int i = 0; i < queue_length; i++) {
-    float for_mean;
-    window.peekIdx(&for_mean, i);
-    if( (int)for_mean > 1 && (int)for_mean < 80){
+    float value;
+    window.peekIdx(&value, i);
+    if( (int)value > 1 && (int)value < 80){
         total_close ++;
       }
   }
@@ -106,7 +102,6 @@ void loop() {
 
   }
 
-  // if 
   if (waitingTime >= minWaitTime) {
     isWaiting = false;
   }
@@ -119,10 +114,10 @@ void loop() {
 // moves the servo 2.25 degrees every quarter (smooth)
 void countdownServo() {
   Serial.println("Counting down");
-  int halfseconds = timer_duration * 4;
+  int quarterseconds = timer_duration * 4;
   int seconds = 0;
-  for (int i = halfseconds; i >= 0; i--) {
-    int angle = i *  (180/halfseconds);
+  for (int i = quarterseconds; i >= 0; i--) {
+    int angle = i *  (180/quarterseconds);
     countServo.write(angle);
     if (seconds%4 == 0){
       Serial.println((String)(seconds/4));
@@ -145,24 +140,4 @@ void clearQueue() {
     float zero = 0;
     window.push(&zero);
   }
-}
-
-
-//helper function to calculate a moving mean.
-int meanZero(float smoothedVal) {
-
-  //push the most recent reading into the queue
-  window.push(&smoothedVal); 
-
-  int retval = 0;
-
-  for (int i = 0; i < queue_length; i++) {
-    float for_mean;
-    window.peekIdx(&for_mean, i);
-    retval = retval + (int)for_mean;
-  }
-
-  // return mean of window
-  int mean = retval / queue_length;
-  return mean;
 }

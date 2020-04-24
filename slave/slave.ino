@@ -60,11 +60,11 @@ void receiveEvent() {
   Serial.println("Recieved event");
   tmrpcm.setVolume(5);
   
-  int song_id = (rand() % 3)+1 ;  
+  int song_id = (rand() % 9)+1 ;  
   char q[] = "1.wav";
   q[0] = song_id + '0';
   Serial.println(q);
-  tmrpcm.play(q);
+     tmrpcm.play(q);
 
   for(int i = 0; i < timer_duration; i++){
     delay(1000);
